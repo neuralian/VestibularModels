@@ -43,5 +43,5 @@ plot!(x2,  pᵣ .+ Srest*x2*xScale, line = :dash,
  annotation = (200, .25,
  text(@sprintf("Sensitivity ratio: %.2f", Srest/Smax),10,:left)))
 
-p2 = twinx(p1)
-ax = axes(p2)
+display(p1)
+savefig("HairCellGating")
