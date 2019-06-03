@@ -60,7 +60,7 @@ lines!(x, map(H,p₀(x*xScale)), color=:darkgoldenrod3)
 function drawHairCell(x0,y0, state)
 
 
-  dx = 45.
+  dx = 50.
   dy = .04
 
 scatter!([x0],[y0],
@@ -92,29 +92,36 @@ end
 # ...and two columns of 4
 for i in 1:4
   x[40+i] = x0 - (i+1)*dx; y[40+i] = y0 + 4.0*dy
-  x[40+i] = x0 - (i+1)*dx; y[40+i] = y0 - 4.0*dy
+  x[44+i] = x0 - (i+1)*dx; y[44+i] = y0 - 4.0*dy
 end
 
 # colours
-c = [state[i]==1 ? :gold1 : :dodgerblue1 for i in 1:48]
-handle = scatter!(x,y,
+c = [state[i] ? :gold1 : :dodgerblue1 for i in 1:48]
+scatter!(x,y,
       marker=:circle,
       markersize = 32,
       color = c,
-      strokewidth = 24,
+      strokewidth = .5,
       strokecolor=:black)
 
-
+scene[end]  # return handle to hair cell bundle
 end
-drawHairCell(-200., .75, convert(Array{Int64},rand(48).<pᵣ))
-p1 = scene[end]
 
-record(scene, "haircell2.gif", 1:10) do i
-#for dx in -100:5:500
-  p = p₀(dx*xScale)
-drawHairCell(-200., .75,
-   convert(Array{Int64},rand(48).<p))
-# scatter!([dx],[p], marker=:hexagon)
+# draw hair cell (resting state)
+HC_handle = drawHairCell(-200., .75, rand(48).<pᵣ)
+
+# draw kinocillium deflection icon
+x00 = -100.
+scatter!([x00],[p₀(x00*xScale)], marker = :hexagon,
+    color = :purple, markersize = 36, markeralpha = .1)
+Kc_handle = scene[end]
+  xstep = 1.
 display(scene)
-# print(dx)
+record(scene, "haircell.mp4", 1:600) do i
+  Δx = x00 + i*xstep
+  p = p₀(Δx*xScale)
+  gateState = rand(48).<p
+  HC_handle[:color] = [gateState[i] ? :gold1 : :dodgerblue1 for i in 1:48]
+  Kc_handle[1] = [Δx]
+  Kc_handle[2] = [p]
 end
