@@ -118,9 +118,10 @@ s1 = slider(LinRange(x[1], x[end], 100),
 deflection = s1[end][:value]
 
 
+
 # draw kinocillium deflection indicators
-scatter!(scene, lift(x->[x*hairScale, x],deflection),
-                lift(x-> [0.5, p₀(x*xScale)], deflection),
+scatter!(scene, [deflection[]*hairScale, x],
+                [0.5, p₀(deflection[]*xScale)],
                 marker = [:hexagon,:circle],
                 color = RGBA(.5,0.,.5,1.0),
                 markersize = [32, 24],
@@ -131,21 +132,23 @@ S = hbox(scene, s1, parent = Scene(resolution = (1200, 800)));
 
 # animate gate states
 # gates flicker open (yellow) and closed (blue)
-# @async runs this block as a parallel process -
-# evaluation of code below it continues while this
-# block is running.  yield() passes control to
-# other processes running in parallel, in this case
-# allowing the slider to update kinocillium deflection.
-#
+@async while isopen(S) # run this block as parallel thread
+                       # while scene (window) is open
 
-@async while isopen(S)
-  p = p₀(deflection[]*xScale)
+  # random (Normal) Brownian perturbation to deflection, RMS 2nm
+  # nb deflection is an Observable whose (observed) value is deflection[]
+  # Similarly randn(1) is a 1-element array of random numbers
+  #    and randn(1)[] (or randn(1)[1]) is a random number
+  Δk = deflection[]+Float32(randn(1)[])*2.0
+
+  p = p₀(Δk*xScale)
   gateState = rand(48).<p
   HC_handle[:color] = [gateState[i] ? :gold1 : :dodgerblue1 for i in 1:48]
-  shake = Float32(randn(1)[])*2.0*hairScale
-  P = [Point2f0(shake, 0.), Point2f0(shake, 0.)]
-  KC_handle[1][] = KC_handle[1][] + P
-  yield()
+
+  KC_handle[1][] = [Point2f0(Δk*hairScale, 0.5), Point2f0(Δk, p)]
+
+  yield() # allow code below this block to run
+          # while continuing to run this block
 end
 
 RecordEvents(S, "output")
