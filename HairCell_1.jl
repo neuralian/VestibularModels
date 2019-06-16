@@ -32,16 +32,21 @@ p₀(x) = 1.0./(1.0 .+ exp.(-z*(x.-x₀)/(kᵦ*T)))
 nPts = 100.
 xScale = 1e-9    # x-axis in nm
 x = (x₀ .+ collect((-nPts/2.):(nPts/2.))/nPts*xRange)/xScale
-scene = lines(x,  p₀(x*xScale), title = "Hair cell gating",
+animationPane = lines(x,  p₀(x*xScale), title = "Hair cell gating",
              linewidth =4,
              color = :darkcyan,
              leg = false
         )
-axis = scene[Axis]
+axis = animationPane[Axis]
  axis[:names][:axisnames] =
  ( "Bundle deflection /nm","Open State Probability")
 
-
+deflectionPane = Scene(limits=FRect(0,-5, 1000,5))
+plot!(deflectionPane,  randn(1000)*10., scale_plot = false,
+   show_axis = false)
+depolarizationPane =  Scene(limits=FRect(0,-5, 1000,5))
+plot!(depolarizationPane,  randn(1000)*10., scale_plot = false,
+   show_axis = false)
 
 # # maximum sensitivity Δp₀ per nm
 # dx = 1e-9   # 1nm
@@ -61,12 +66,12 @@ axis = scene[Axis]
 # H(p) = entropy(Binomial(Nch,p),2.0)/Hmax
 # lines!(x, map(H,p₀(x*xScale)), color=:darkgoldenrod3)
 
-function drawHairCell(x0,y0, state)
+function drawHairCell(panel, x0,y0, state)
 
-  dx = 50.
+  dx = 45.
   dy = .04
 
-  scatter!([x0],[y0],
+  scatter!(panel, [x0],[y0],
     marker=:hexagon,
     markersize = 36,
     color =  RGBA(.5,0.,.5,.5),
@@ -98,18 +103,18 @@ function drawHairCell(x0,y0, state)
 
   # colours
   c = [state[i] ? :gold1 : :dodgerblue1 for i in 1:48]
-  scatter!(x,y,
+  scatter!(panel, x,y,
         marker=:circle,
         markersize = 32,
         color = c,
         strokewidth = .5,
         strokecolor=:black)
 
-  scene[end]  # return handle to hair cell bundle
+  panel[end]  # return handle to hair cell bundle
 end
 
 # draw hair cell (resting state)
-HC_handle = drawHairCell(-0., .5, rand(48).<pᵣ)
+HC_handle = drawHairCell(animationPane, -0., .5, rand(48).<pᵣ)
 
 
 # slider controls kinocillium deflection
@@ -120,15 +125,20 @@ deflection = s1[end][:value]
 
 
 # draw kinocillium deflection indicators
-scatter!(scene, [deflection[]*hairScale, x],
+scatter!(animationPane, [deflection[]*hairScale, x],
                 [0.5, p₀(deflection[]*xScale)],
                 marker = [:hexagon,:circle],
                 color = RGBA(.5,0.,.5,1.0),
                 markersize = [32, 24],
                 strokewidth = 1,
                 strokecolor = :black)
-KC_handle = scene[end]  # Array{Point{2,Float32},1} coordinates
-S = hbox(scene, s1, parent = Scene(resolution = (1200, 800)));
+KC_handle = animationPane[end]  # Array{Point{2,Float32},1} coordinates
+
+
+
+
+S = hbox(depolarizationPane, deflectionPane, animationPane, s1,
+     sizes = [.1, .1, .7, .1], parent = Scene(resolution = (1000, 800)));
 
 # animate gate states
 # gates flicker open (yellow) and closed (blue)
