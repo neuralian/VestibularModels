@@ -25,6 +25,7 @@ pᵣ = 0.15      # resting/spontaneous open state probability
 Nch = 48       # number of gating channels
 pRange = 1e-6  # range of probabilities to plot (pRange, 1-pRange)
 hairScale = 0.05 # scale deflection from plot to gate-state animation
+dt = 1e-4        # 100 microsecond time steps
 
 # solve p₀(x₀)= 1/2 (deflection when open state prob = 1/2)
 x₀ =  kᵦ*T*log( (1-pᵣ)/pᵣ)/z
@@ -136,9 +137,14 @@ S = vbox(plotPanel, hbox(s1, animationPane, sizes = [.1, .9]),
 # The let-end block allows local variables to be defined and initialized
 # that are visible in the while-end block
 let
-  wobble = 0.0    # kinocillium Brownian deflection
-  α = 0.1       # noise correlation (1/time const)
-  Q = 5.0       # thermal noise power
+  wobble = 0.0        # kinocillium Brownian deflection
+  Q =4.e3       # thermal noise power
+  τₖ = 2.0e-3         # bundle time constant 2ms (500Hz roll-off)
+  α = exp(-dt/τ)      # difference eqn coeff for time const τₖ
+  σₖ = sqrt(Q*dt/(1-α^2))  # noise rms power
+  println(σₖ)
+
+
 
 # animate gate states
 # gates flicker open (yellow) and closed (blue)
@@ -153,11 +159,7 @@ let
   # nb deflection is an Observable whose (observed) value is deflection[]
   # Similarly randn(1) is a 1-element array of random numbers
   #    but randn(1)[] (or randn(1)[1]) is a random number
-  # brown must be declared global (explicitly the same 'brown' as above)
-  # but α and Q don't need this ??? I'm guessing that it's because
-  #
-
-  wobble = (1.0 - α)*wobble + α*Q*randn(1)[]
+  wobble = α*wobble + σₖ*randn(1)[]
 
   Δk = deflection[] + Float32(wobble)
 
