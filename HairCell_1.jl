@@ -8,6 +8,13 @@ using Makie
 using AbstractPlotting
 using Colors
 using Distributions
+using Revise
+
+# set thisScreen = big- or small- depending on
+# how much screen real estate you have (or want the window to occupy)
+bigScreen = (1600, 600)
+smallScreen = (800, 400)
+thisScreen = bigScreen
 
 
 kᵦ = 1.38e-23  # Boltzmann constant J/K or m^2 kg ^-2 K^-1
@@ -16,7 +23,7 @@ z  = 40.e-15   # Gating force 40 fN (Howard, Roberts & Hudspeth 1988)
 d  = 3.5e-9    # Gate swing distance 3.5nm
 pᵣ = 0.15      # resting/spontaneous open state probability
 Nch = 48       # number of gating channels
-pRange = 1e-7  # range of probabilities to plot (pRange, 1-pRange)
+pRange = 1e-6  # range of probabilities to plot (pRange, 1-pRange)
 hairScale = 0.05 # scale deflection from plot to gate-state animation
 
 # solve p₀(x₀)= 1/2 (deflection when open state prob = 1/2)
@@ -29,10 +36,11 @@ xRange =  kᵦ*T*log( (1-pRange)/pRange)/z
 p₀(x) = 1.0./(1.0 .+ exp.(-z*(x.-x₀)/(kᵦ*T)))
 
 # plot
+animationPane = Scene(limits=FRect(-600., 0., 1600., 1.))
 nPts = 100.
 xScale = 1e-9    # x-axis in nm
 x = (x₀ .+ collect((-nPts/2.):(nPts/2.))/nPts*xRange)/xScale
-animationPane = lines(x,  p₀(x*xScale), title = "Hair cell gating",
+ lines!(animationPane, x,  p₀(x*xScale), title = "Hair cell gating",
              linewidth =4,
              color = :darkcyan,
              leg = false
@@ -41,34 +49,18 @@ axis = animationPane[Axis]
  axis[:names][:axisnames] =
  ( "Bundle deflection /nm","Open State Probability")
 
-deflectionPane = Scene(limits=FRect(0,-5, 1000,5))
-plot!(deflectionPane,  randn(1000)*10., scale_plot = false,
-   show_axis = false)
-depolarizationPane =  Scene(limits=FRect(0,-5, 1000,5))
-plot!(depolarizationPane,  randn(1000)*10., scale_plot = false,
-   show_axis = false)
-
-# # maximum sensitivity Δp₀ per nm
-# dx = 1e-9   # 1nm
-# Smax = (p₀(x₀+dx)-p₀(x₀-dx))/(2.0*dx)  # = slope at x₀
-# Λ2 = 1.0/(2.0*Smax) # half-space constant
-# x1 = (x₀ .+ collect((-nPts):(nPts))/nPts*Λ2)/xScale
-# lines!(x1,  .5 .+ Smax*(x1.-x₀/xScale)*xScale, color = :salmon)
-
-# # sensitivity at resting position
-# Srest = (p₀(dx)-p₀(-dx))/(2.0*dx)  # = slope at x₀
-# D = pᵣ/Srest
-# x2 = collect((-nPts/3):(nPts))/(nPts/3)*D/xScale
-# lines!(x2,  pᵣ .+ Srest*x2*xScale, color = :orange4)
-
-# # Shannon entropy of gate states
-# Hmax = entropy(Binomial(Nch,.5), 2.0)
-# H(p) = entropy(Binomial(Nch,p),2.0)/Hmax
-# lines!(x, map(H,p₀(x*xScale)), color=:darkgoldenrod3)
+plotPanel = Scene(limits=FRect(0,0., 1000.,1000.))
+t = 1:1000
+w = 0.17 .+ randn(size(t))
+plot!(plotPanel,t, w  , xlim = (0, 1000), ylim = (0, 1),
+   scale_plot = false,
+   show_axis = false,
+   color = :purple)
+D = plotPanel[end]
 
 function drawHairCell(panel, x0,y0, state)
 
-  dx = 45.
+  dx = 48.5
   dy = .04
 
   scatter!(panel, [x0],[y0],
@@ -135,21 +127,39 @@ scatter!(animationPane, [deflection[]*hairScale, x],
 KC_handle = animationPane[end]  # Array{Point{2,Float32},1} coordinates
 
 
+# create display windo
+S = vbox(plotPanel, hbox(s1, animationPane, sizes = [.1, .9]),
+     sizes = [.5, .5], parent = Scene(resolution = thisScreen));
 
 
-S = hbox(depolarizationPane, deflectionPane, animationPane, s1,
-     sizes = [.1, .1, .7, .1], parent = Scene(resolution = (1000, 800)));
+# Brownian motion
+# The let-end block allows local variables to be defined and initialized
+# that are visible in the while-end block
+let
+  wobble = 0.0    # kinocillium Brownian deflection
+  α = 0.1       # noise correlation (1/time const)
+  Q = 5.0       # thermal noise power
 
 # animate gate states
 # gates flicker open (yellow) and closed (blue)
 @async while isopen(S) # run this block as parallel thread
                        # while scene (window) is open
+                       # NB if you edit and re-run the script without
+                       # closing the scene or re-starting Julia
+                       # then this block continues to run ... you'll have
+                       # two processes updating the scene! (and you can see it)
 
-  # random (Normal) Brownian perturbation to deflection, RMS 2nm
+  # Brownian perturbation RMS 2nm
   # nb deflection is an Observable whose (observed) value is deflection[]
   # Similarly randn(1) is a 1-element array of random numbers
-  #    and randn(1)[] (or randn(1)[1]) is a random number
-  Δk = deflection[]+Float32(randn(1)[])*2.0
+  #    but randn(1)[] (or randn(1)[1]) is a random number
+  # brown must be declared global (explicitly the same 'brown' as above)
+  # but α and Q don't need this ??? I'm guessing that it's because
+  #
+
+  wobble = (1.0 - α)*wobble + α*Q*randn(1)[]
+
+  Δk = deflection[] + Float32(wobble)
 
   p = p₀(Δk*xScale)
   gateState = rand(48).<p
@@ -157,8 +167,19 @@ S = hbox(depolarizationPane, deflectionPane, animationPane, s1,
 
   KC_handle[1][] = [Point2f0(Δk*hairScale, 0.5), Point2f0(Δk, p)]
 
+  dScale = .5
+  push!(deleteat!(w,1),p*1000.)
+  D[2] = w
+
+  # change/comment out this delay
+  # depending on the speed of your machine
+  # (animation runs way too fast on the dev machine)
+  sleep(.001)
+
   yield() # allow code below this block to run
           # while continuing to run this block
+end
+
 end
 
 RecordEvents(S, "output")
