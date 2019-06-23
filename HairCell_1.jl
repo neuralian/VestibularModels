@@ -140,9 +140,9 @@ let
   wobble = 0.0        # kinocillium Brownian deflection
   Q =4.e3       # thermal noise power
   τₖ = 2.0e-3         # bundle time constant 2ms (500Hz roll-off)
-  α = exp(-dt/τ)      # difference eqn coeff for time const τₖ
+  α = exp(-dt/τₖ)      # difference eqn coeff for time const τₖ
   σₖ = sqrt(Q*dt/(1-α^2))  # noise rms power
-  println(σₖ)
+  #println(σₖ)
 
 
 
