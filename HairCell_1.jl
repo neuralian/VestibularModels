@@ -17,6 +17,10 @@ smallScreen = (800, 400)
 thisScreen = bigScreen
 
 
+# App scene (contains 4 subscenes)
+mainWindow = Scene(resolution = (1000, 800))
+
+
 kᵦ = 1.38e-23  # Boltzmann constant J/K or m^2 kg ^-2 K^-1
 T  = 300.      # temperature K
 z  = 40.e-15   # Gating force 40 fN (Howard, Roberts & Hudspeth 1988)
@@ -37,27 +41,45 @@ xRange =  kᵦ*T*log( (1-pRange)/pRange)/z
 p₀(x) = 1.0./(1.0 .+ exp.(-z*(x.-x₀)/(kᵦ*T)))
 
 # plot
-animationPane = Scene(limits=FRect(-600., 0., 1600., 1.))
+animationPanel = Scene( mainWindow,
+                        IRect(500, 400, 500, 400))
+                      #  limits=FRect(-600., 0., 1600., 1.))
 nPts = 100.
 xScale = 1e-9    # x-axis in nm
 x = (x₀ .+ collect((-nPts/2.):(nPts/2.))/nPts*xRange)/xScale
- lines!(animationPane, x,  p₀(x*xScale), title = "Hair cell gating",
+ lines!(animationPanel, x,  p₀(x*xScale), title = "Hair cell gating",
              linewidth =4,
              color = :darkcyan,
              leg = false
         )
-axis = animationPane[Axis]
+axis = animationPanel[Axis]
  axis[:names][:axisnames] =
  ( "Bundle deflection /nm","Open State Probability")
 
-plotPanel = Scene(limits=FRect(0,0., 1000.,1000.))
+transductionPanel = Scene(mainWindow,
+                          IRect(0, 400, 500,400),
+                      #    limits=FRect(0,0., 1000.,1000.),
+                          backgroundcolor = :lightblue)
 t = 1:1000
-w = 0.17 .+ randn(size(t))
-plot!(plotPanel,t, w  , xlim = (0, 1000), ylim = (0, 1),
+
+nChanOpen = zeros(size(t))
+scatter!(transductionPanel, t, nChanOpen,
+        scale_plot = false,
+        show_axis = false,
+        marker = :circle,
+        color = RGBA(.25, 0., .25, .5),
+        markersize = 2)
+channelCount_plothandle = transductionPanel[end]
+
+w = 0.17 .+ randn(size(t))   # Brownian motion deflection
+plot!(transductionPanel,t, w  , xlim = (0, 1000), ylim = (0, 1),
    scale_plot = false,
    show_axis = false,
    color = :purple)
-D = plotPanel[end]
+kinocillium_motion_plothandle = transductionPanel[end]
+
+
+
 
 function drawHairCell(panel, x0,y0, state)
 
@@ -107,38 +129,38 @@ function drawHairCell(panel, x0,y0, state)
 end
 
 # draw hair cell (resting state)
-HC_handle = drawHairCell(animationPane, -0., .5, rand(48).<pᵣ)
+HC_handle = drawHairCell(animationPanel, -0., .5, rand(48).<pᵣ)
 
 
 # slider controls kinocillium deflection
-s1 = slider(LinRange(x[1], x[end], 100),
+s1 = slider!(LinRange(x[1], x[end], 100),
         raw = true, camera = campixel!, start = 0.0)
 deflection = s1[end][:value]
 
 
 
 # draw kinocillium deflection indicators
-scatter!(animationPane, [deflection[]*hairScale, x],
+scatter!(animationPanel, [deflection[]*hairScale, x],
                 [0.5, p₀(deflection[]*xScale)],
                 marker = [:hexagon,:circle],
                 color = RGBA(.5,0.,.5,1.0),
                 markersize = [32, 24],
                 strokewidth = 1,
                 strokecolor = :black)
-KC_handle = animationPane[end]  # Array{Point{2,Float32},1} coordinates
+KC_handle = animationPanel[end]  # Array{Point{2,Float32},1} coordinates
 
 
-# create display windo
-S = vbox(plotPanel, hbox(s1, animationPane, sizes = [.1, .9]),
-     sizes = [.5, .5], parent = Scene(resolution = thisScreen));
+# create display window
+#S = hbox(s1, mainWindow, sizes = [.1, .9], resolution = (1000,800))
 
+#
 
 # Brownian motion
 # The let-end block allows local variables to be defined and initialized
 # that are visible in the while-end block
 let
   wobble = 0.0        # kinocillium Brownian deflection
-  Q =4.e3       # thermal noise power
+  Q =4.e2       # thermal noise power
   τₖ = 2.0e-3         # bundle time constant 2ms (500Hz roll-off)
   α = exp(-dt/τₖ)      # difference eqn coeff for time const τₖ
   σₖ = sqrt(Q*dt/(1-α^2))  # noise rms power
@@ -148,7 +170,7 @@ let
 
 # animate gate states
 # gates flicker open (yellow) and closed (blue)
-@async while isopen(S) # run this block as parallel thread
+@async while isopen(mainWindow) # run this block as parallel thread
                        # while scene (window) is open
                        # NB if you edit and re-run the script without
                        # closing the scene or re-starting Julia
@@ -171,7 +193,10 @@ let
 
   dScale = .5
   push!(deleteat!(w,1),p*1000.)
-  D[2] = w
+  kinocillium_motion_plothandle[2] = w
+
+  push!(deleteat!(nChanOpen,1), 1000.0/48.0*sum(gateState))
+  channelCount_plothandle[2] = nChanOpen
 
   # change/comment out this delay
   # depending on the speed of your machine
@@ -184,4 +209,4 @@ end
 
 end
 
-RecordEvents(S, "output")
+RecordEvents(mainWindow, "output")
